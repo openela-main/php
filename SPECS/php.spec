@@ -64,7 +64,7 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.1.14
+%global upver        8.1.27
 #global rcver        RC1
 
 Summary: PHP scripting language for creating dynamic web sites
@@ -111,7 +111,7 @@ Patch8: php-8.1.0-libdb.patch
 # Use system nikic/php-parser
 Patch41: php-8.1.0-parser.patch
 # use system tzdata
-Patch42: php-8.1.0-systzdata-v22.patch
+Patch42: php-8.1.0-systzdata-v23.patch
 # See http://bugs.php.net/53436
 Patch43: php-7.4.0-phpize.patch
 # Use -lldap_r for OpenLDAP
@@ -707,25 +707,25 @@ in pure PHP.
 
 %setup -q -n php-%{upver}%{?rcver}
 
-%patch1 -p1 -b .mpmcheck
-%patch5 -p1 -b .includedir
-%patch6 -p1 -b .embed
-%patch8 -p1 -b .libdb
+%patch -P1 -p1 -b .mpmcheck
+%patch -P5 -p1 -b .includedir
+%patch -P6 -p1 -b .embed
+%patch -P8 -p1 -b .libdb
 
-%patch41 -p1 -b .syslib
-%patch42 -p1 -b .systzdata
-%patch43 -p1 -b .headers
+%patch -P41 -p1 -b .syslib
+%patch -P42 -p1 -b .systzdata
+%patch -P43 -p1 -b .headers
 %if 0%{?fedora} >= 18 || 0%{?rhel} >= 7
-%patch45 -p1 -b .ldap_r
+%patch -P45 -p1 -b .ldap_r
 %endif
-%patch47 -p1 -b .phpinfo
+%patch -P47 -p1 -b .phpinfo
 
 # upstream patches
 
 # security patches
 
 # Fixes for tests
-%patch300 -p1 -b .datetests
+%patch -P300 -p1 -b .datetests
 
 
 # Prevent %%doc confusion over LICENSE files
@@ -1539,6 +1539,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Thu Dec 21 2023 Remi Collet <rcollet@redhat.com> - 8.1.27-1
+- rebase to 8.1.27 RHEL-19093
+
 * Fri Jan 13 2023 Remi Collet <rcollet@redhat.com> - 8.1.14-1
 - rebase to 8.1.14
 
