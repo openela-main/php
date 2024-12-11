@@ -64,8 +64,7 @@
 %bcond_without   modphp
 %bcond_without   db4
 
-%global upver        8.2.13
-#global rcver        RC1
+%global upver        8.2.25
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
@@ -111,14 +110,14 @@ Patch8: php-8.1.0-libdb.patch
 # Use system nikic/php-parser
 Patch41: php-8.2.0-parser.patch
 # use system tzdata
-Patch42: php-8.1.0-systzdata-v24.patch
+Patch42: php-8.2.23-systzdata-v24.patch
 # See http://bugs.php.net/53436
 Patch43: php-7.4.0-phpize.patch
 # Use -lldap_r for OpenLDAP
 Patch45: php-7.4.0-ldap_r.patch
 # drop "Configure command" from phpinfo output
 # and only use gcc (instead of full version)
-Patch47: php-8.1.0-phpinfo.patch
+Patch47: php-8.2.25-phpinfo.patch
 
 # Upstream fixes (100+)
 
@@ -1537,6 +1536,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Tue Nov 12 2024 Remi Collet <rcollet@redhat.com> - 8.2.25-1
+- rebase to 8.2.25 RHEL-66166
+
 * Mon Nov 27 2023 Remi Collet <rcollet@redhat.com> - 8.2.13-1
 - rebase to 8.2.13 RHEL-14705
 - add %%__phpize and %%__phpconfig macros
