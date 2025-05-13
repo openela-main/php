@@ -1,4 +1,4 @@
-# Fedora spec file for php
+# RHEL/Fedora spec file for php
 #
 # License: MIT
 # http://opensource.org/licenses/MIT
@@ -63,7 +63,7 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.15
+%global upver        8.3.19
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
@@ -1553,6 +1553,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Wed Apr  9 2025 Remi Collet <rcollet@redhat.com> - 8.3.19-1
+- rebase to 8.3.19
+
 * Fri Dec 20 2024 Remi Collet <rcollet@redhat.com> - 8.3.15-1
 - rebase to 8.3.15
 
