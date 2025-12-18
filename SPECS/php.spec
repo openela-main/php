@@ -63,7 +63,7 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.19
+%global upver        8.3.26
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
@@ -102,7 +102,7 @@ Source53: 20-ffi.ini
 # Build fixes
 Patch1: php-7.4.0-httpd.patch
 Patch5: php-7.2.0-includedir.patch
-Patch6: php-8.0.0-embed.patch
+Patch6: php-8.3.20-embed.patch
 Patch8: php-8.1.0-libdb.patch
 
 # Functional changes
@@ -1554,6 +1554,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Tue Sep 30 2025 Remi Collet <rcollet@redhat.com> - 8.3.26-1
+- rebase to 8.3.26
+
 * Wed Apr  9 2025 Remi Collet <rcollet@redhat.com> - 8.3.19-1
 - rebase to 8.3.19
 
