@@ -1,0 +1,655 @@
+From 8f69248f7631cbd0515604c5d7e68fc6ee0c5b97 Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Wed, 26 Feb 2025 17:26:08 +0100
+Subject: [PATCH 1/4] Fix #17776 LDAP_OPT_X_TLS_REQUIRE_CERT can't be
+ overridden
+
+(cherry picked from commit 389de7c6bf59e14145e932f4d3c0171803a3ba97)
+---
+ ext/ldap/ldap.c                          | 89 ++++++++++++++++++------
+ ext/ldap/php_ldap.h                      |  1 +
+ ext/ldap/tests/ldap_start_tls_basic.phpt | 21 +++++-
+ ext/ldap/tests/ldaps_basic.phpt          | 55 +++++++++++++++
+ 4 files changed, 141 insertions(+), 25 deletions(-)
+ create mode 100644 ext/ldap/tests/ldaps_basic.phpt
+
+diff --git a/ext/ldap/ldap.c b/ext/ldap/ldap.c
+index 6661310d055..299cd6c855b 100644
+--- a/ext/ldap/ldap.c
++++ b/ext/ldap/ldap.c
+@@ -715,6 +715,21 @@ static PHP_GINIT_FUNCTION(ldap)
+ }
+ /* }}} */
+ 
++/* {{{ PHP_RINIT_FUNCTION */
++static PHP_RINIT_FUNCTION(ldap)
++{
++#if defined(COMPILE_DL_LDAP) && defined(ZTS)
++	ZEND_TSRMLS_CACHE_UPDATE();
++#endif
++
++	/* needed before first connect and after TLS option changes */
++	LDAPG(tls_newctx) = true;
++
++	return SUCCESS;
++}
++/* }}} */
++
++
+ /* {{{ PHP_MINIT_FUNCTION */
+ PHP_MINIT_FUNCTION(ldap)
+ {
+@@ -1037,6 +1052,20 @@ PHP_FUNCTION(ldap_connect)
+ 			snprintf( url, urllen, "ldap://%s:" ZEND_LONG_FMT, host, port );
+ 		}
+ 
++#ifdef LDAP_OPT_X_TLS_NEWCTX
++		if (LDAPG(tls_newctx) && url && !strncmp(url, "ldaps:", 6)) {
++			int val = 0;
++
++			/* ensure all pending TLS options are applied in a new context */
++			if (ldap_set_option(NULL, LDAP_OPT_X_TLS_NEWCTX, &val) != LDAP_OPT_SUCCESS) {
++				zval_ptr_dtor(return_value);
++				php_error_docref(NULL, E_WARNING, "Could not create new security context");
++				RETURN_FALSE;
++			}
++			LDAPG(tls_newctx) = false;
++		}
++#endif
++
+ #ifdef LDAP_API_FEATURE_X_OPENLDAP
+ 		/* ldap_init() is deprecated, use ldap_initialize() instead.
+ 		 */
+@@ -3135,15 +3164,7 @@ PHP_FUNCTION(ldap_set_option)
+ 	}
+ 
+ 	switch (option) {
+-	/* options with int value */
+-	case LDAP_OPT_DEREF:
+-	case LDAP_OPT_SIZELIMIT:
+-	case LDAP_OPT_TIMELIMIT:
+-	case LDAP_OPT_PROTOCOL_VERSION:
+-	case LDAP_OPT_ERROR_NUMBER:
+-#ifdef LDAP_OPT_DEBUG_LEVEL
+-	case LDAP_OPT_DEBUG_LEVEL:
+-#endif
++	/* TLS options with int value */
+ #ifdef LDAP_OPT_X_TLS_REQUIRE_CERT
+ 	case LDAP_OPT_X_TLS_REQUIRE_CERT:
+ #endif
+@@ -3152,6 +3173,18 @@ PHP_FUNCTION(ldap_set_option)
+ #endif
+ #ifdef LDAP_OPT_X_TLS_PROTOCOL_MIN
+ 	case LDAP_OPT_X_TLS_PROTOCOL_MIN:
++#endif
++		/* TLS option change requires resetting TLS context */
++		LDAPG(tls_newctx) = true;
++		ZEND_FALLTHROUGH;
++	/* other options with int value */
++	case LDAP_OPT_DEREF:
++	case LDAP_OPT_SIZELIMIT:
++	case LDAP_OPT_TIMELIMIT:
++	case LDAP_OPT_PROTOCOL_VERSION:
++	case LDAP_OPT_ERROR_NUMBER:
++#ifdef LDAP_OPT_DEBUG_LEVEL
++	case LDAP_OPT_DEBUG_LEVEL:
+ #endif
+ #ifdef LDAP_OPT_X_KEEPALIVE_IDLE
+ 	case LDAP_OPT_X_KEEPALIVE_IDLE:
+@@ -3208,17 +3241,7 @@ PHP_FUNCTION(ldap_set_option)
+ 			}
+ 		} break;
+ #endif
+-		/* options with string value */
+-	case LDAP_OPT_ERROR_STRING:
+-#ifdef LDAP_OPT_HOST_NAME
+-	case LDAP_OPT_HOST_NAME:
+-#endif
+-#ifdef HAVE_LDAP_SASL
+-	case LDAP_OPT_X_SASL_MECH:
+-	case LDAP_OPT_X_SASL_REALM:
+-	case LDAP_OPT_X_SASL_AUTHCID:
+-	case LDAP_OPT_X_SASL_AUTHZID:
+-#endif
++	/* TLS options with string value */
+ #if (LDAP_API_VERSION > 2000)
+ 	case LDAP_OPT_X_TLS_CACERTDIR:
+ 	case LDAP_OPT_X_TLS_CACERTFILE:
+@@ -3232,6 +3255,20 @@ PHP_FUNCTION(ldap_set_option)
+ #endif
+ #ifdef LDAP_OPT_X_TLS_DHFILE
+ 	case LDAP_OPT_X_TLS_DHFILE:
++#endif
++		/* TLS option change requires resetting TLS context */
++		LDAPG(tls_newctx) = true;
++		ZEND_FALLTHROUGH;
++	/* other options with string value */
++	case LDAP_OPT_ERROR_STRING:
++#ifdef LDAP_OPT_HOST_NAME
++	case LDAP_OPT_HOST_NAME:
++#endif
++#ifdef HAVE_LDAP_SASL
++	case LDAP_OPT_X_SASL_MECH:
++	case LDAP_OPT_X_SASL_REALM:
++	case LDAP_OPT_X_SASL_AUTHCID:
++	case LDAP_OPT_X_SASL_AUTHZID:
+ #endif
+ #ifdef LDAP_OPT_MATCHED_DN
+ 	case LDAP_OPT_MATCHED_DN:
+@@ -3658,6 +3695,9 @@ PHP_FUNCTION(ldap_start_tls)
+ 	zval *link;
+ 	ldap_linkdata *ld;
+ 	int rc, protocol = LDAP_VERSION3;
++#ifdef LDAP_OPT_X_TLS_NEWCTX
++	int val = 0;
++#endif
+ 
+ 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &link) != SUCCESS) {
+ 		RETURN_THROWS();
+@@ -3668,13 +3708,16 @@ PHP_FUNCTION(ldap_start_tls)
+ 	}
+ 
+ 	if (((rc = ldap_set_option(ld->link, LDAP_OPT_PROTOCOL_VERSION, &protocol)) != LDAP_SUCCESS) ||
++#ifdef LDAP_OPT_X_TLS_NEWCTX
++		(LDAPG(tls_newctx) && (rc = ldap_set_option(ld->link, LDAP_OPT_X_TLS_NEWCTX, &val)) != LDAP_OPT_SUCCESS) ||
++#endif
+ 		((rc = ldap_start_tls_s(ld->link, NULL, NULL)) != LDAP_SUCCESS)
+ 	) {
+ 		php_error_docref(NULL, E_WARNING,"Unable to start TLS: %s", ldap_err2string(rc));
+ 		RETURN_FALSE;
+-	} else {
+-		RETURN_TRUE;
+ 	}
++	LDAPG(tls_newctx) = false;
++	RETURN_TRUE;
+ }
+ /* }}} */
+ #endif
+@@ -4178,7 +4221,7 @@ zend_module_entry ldap_module_entry = { /* {{{ */
+ 	ext_functions,
+ 	PHP_MINIT(ldap),
+ 	PHP_MSHUTDOWN(ldap),
+-	NULL,
++	PHP_RINIT(ldap),
+ 	NULL,
+ 	PHP_MINFO(ldap),
+ 	PHP_LDAP_VERSION,
+diff --git a/ext/ldap/php_ldap.h b/ext/ldap/php_ldap.h
+index fcda55e92fb..36941d952bf 100644
+--- a/ext/ldap/php_ldap.h
++++ b/ext/ldap/php_ldap.h
+@@ -39,6 +39,7 @@ PHP_MINFO_FUNCTION(ldap);
+ ZEND_BEGIN_MODULE_GLOBALS(ldap)
+ 	zend_long num_links;
+ 	zend_long max_links;
++	bool tls_newctx; /* create new TLS context before connect */
+ ZEND_END_MODULE_GLOBALS(ldap)
+ 
+ #if defined(ZTS) && defined(COMPILE_DL_LDAP)
+diff --git a/ext/ldap/tests/ldap_start_tls_basic.phpt b/ext/ldap/tests/ldap_start_tls_basic.phpt
+index a9e3c6c97ce..94d9e8e9552 100644
+--- a/ext/ldap/tests/ldap_start_tls_basic.phpt
++++ b/ext/ldap/tests/ldap_start_tls_basic.phpt
+@@ -8,11 +8,28 @@ Patrick Allaert <patrickallaert@php.net>
+ <?php require_once __DIR__ .'/skipifbindfailure.inc'; ?>
+ --FILE--
+ <?php
+-require "connect.inc";
++require_once "connect.inc";
+ 
++// CI uses self signed certificate
++
++// No cert option - fails
++$link = ldap_connect($host, $port);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_start_tls($link));
++
++// No cert check - passes
++$link = ldap_connect($host, $port);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++ldap_set_option($link, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
++var_dump(@ldap_start_tls($link));
++
++// With cert check - fails
+ $link = ldap_connect($host, $port);
+ ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
+-var_dump(ldap_start_tls($link));
++ldap_set_option($link, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_DEMAND);
++var_dump(@ldap_start_tls($link));
+ ?>
+ --EXPECT--
++bool(false)
+ bool(true)
++bool(false)
+diff --git a/ext/ldap/tests/ldaps_basic.phpt b/ext/ldap/tests/ldaps_basic.phpt
+new file mode 100644
+index 00000000000..7a1a1383436
+--- /dev/null
++++ b/ext/ldap/tests/ldaps_basic.phpt
+@@ -0,0 +1,55 @@
++--TEST--
++ldap_connect() - Basic ldaps test
++--EXTENSIONS--
++ldap
++--XFAIL--
++Passes locally but fails on CI - need investigation (configuration ?)
++--SKIPIF--
++<?php require_once __DIR__ .'/skipifbindfailure.inc'; ?>
++--FILE--
++<?php
++require_once "connect.inc";
++
++$uri = "ldaps://$host:636";
++
++// CI uses self signed certificate
++
++// No cert option - fails
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_bind($link, $user, $passwd));
++ldap_unbind($link);
++
++// No cert check - passes
++ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_ALLOW);
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_bind($link, $user, $passwd));
++ldap_unbind($link);
++
++// No change to TLS options
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_bind($link, $user, $passwd));
++ldap_unbind($link);
++
++// With cert check - fails
++ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_DEMAND);
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_bind($link, $user, $passwd));
++ldap_unbind($link);
++
++// No change to TLS options
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_bind($link, $user, $passwd));
++ldap_unbind($link);
++
++?>
++--EXPECT--
++bool(false)
++bool(true)
++bool(true)
++bool(false)
++bool(false)
+-- 
+2.43.7
+
+From 398430a2ee29c30aad76fea54358e3d7c53c3357 Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Tue, 13 May 2025 16:00:32 +0200
+Subject: [PATCH 2/4] Fix GH-18529: ldap no longer respects TLS_CACERT from
+ ldaprc in ldap_start_tls() Regresion introduced in fix for GH-17776
+
+- ensure TLS string options are properly inherited
+  workaround to openldap issue https://bugs.openldap.org/show_bug.cgi?id=10337
+
+- fix ldaps/start_tls tests using LDAPNOINIT in ldaps/tls tests
+
+(cherry picked from commit 2760a3ef9719dac2e53baf3dc2d8a3dd1227d88b)
+---
+ ext/ldap/ldap.c                          | 49 ++++++++++++++++++++++--
+ ext/ldap/tests/ldap_start_tls_basic.phpt |  2 +
+ ext/ldap/tests/ldaps_basic.phpt          |  4 +-
+ 3 files changed, 49 insertions(+), 6 deletions(-)
+
+diff --git a/ext/ldap/ldap.c b/ext/ldap/ldap.c
+index 299cd6c855b..6d576b84bd4 100644
+--- a/ext/ldap/ldap.c
++++ b/ext/ldap/ldap.c
+@@ -3689,15 +3689,56 @@ PHP_FUNCTION(ldap_rename_ext)
+ /* }}} */
+ 
+ #ifdef HAVE_LDAP_START_TLS_S
++/*
++  Force new tls context creation with string options inherited from global
++  Workaround to https://bugs.openldap.org/show_bug.cgi?id=10337
++ */
++static int _php_ldap_tls_newctx(LDAP *ld)
++{
++	int val = 0, i, opts[] = {
++#if (LDAP_API_VERSION > 2000)
++		LDAP_OPT_X_TLS_CACERTDIR,
++		LDAP_OPT_X_TLS_CACERTFILE,
++		LDAP_OPT_X_TLS_CERTFILE,
++		LDAP_OPT_X_TLS_CIPHER_SUITE,
++		LDAP_OPT_X_TLS_KEYFILE,
++		LDAP_OPT_X_TLS_RANDOM_FILE,
++#endif
++#ifdef LDAP_OPT_X_TLS_CRLFILE
++		LDAP_OPT_X_TLS_CRLFILE,
++#endif
++#ifdef LDAP_OPT_X_TLS_DHFILE
++		LDAP_OPT_X_TLS_DHFILE,
++#endif
++#ifdef LDAP_OPT_X_TLS_ECNAME
++		LDAP_OPT_X_TLS_ECNAME,
++#endif
++	0};
++
++	for (i=0 ; opts[i] ; i++) {
++		char *path = NULL;
++
++		ldap_get_option(ld, opts[i], &path);
++		if (path) {			/* already set locally */
++			ldap_memfree(path);
++		} else {
++			ldap_get_option(NULL, opts[i], &path);
++			if (path) { 	/* set globally, inherit */
++				ldap_set_option(ld, opts[i], path);
++				ldap_memfree(path);
++			}
++		}
++	}
++
++	return ldap_set_option(ld, LDAP_OPT_X_TLS_NEWCTX, &val);
++}
++
+ /* {{{ Start TLS */
+ PHP_FUNCTION(ldap_start_tls)
+ {
+ 	zval *link;
+ 	ldap_linkdata *ld;
+ 	int rc, protocol = LDAP_VERSION3;
+-#ifdef LDAP_OPT_X_TLS_NEWCTX
+-	int val = 0;
+-#endif
+ 
+ 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &link) != SUCCESS) {
+ 		RETURN_THROWS();
+@@ -3709,7 +3750,7 @@ PHP_FUNCTION(ldap_start_tls)
+ 
+ 	if (((rc = ldap_set_option(ld->link, LDAP_OPT_PROTOCOL_VERSION, &protocol)) != LDAP_SUCCESS) ||
+ #ifdef LDAP_OPT_X_TLS_NEWCTX
+-		(LDAPG(tls_newctx) && (rc = ldap_set_option(ld->link, LDAP_OPT_X_TLS_NEWCTX, &val)) != LDAP_OPT_SUCCESS) ||
++		(LDAPG(tls_newctx) && (rc = _php_ldap_tls_newctx(ld->link)) != LDAP_OPT_SUCCESS) ||
+ #endif
+ 		((rc = ldap_start_tls_s(ld->link, NULL, NULL)) != LDAP_SUCCESS)
+ 	) {
+diff --git a/ext/ldap/tests/ldap_start_tls_basic.phpt b/ext/ldap/tests/ldap_start_tls_basic.phpt
+index 94d9e8e9552..14720b57286 100644
+--- a/ext/ldap/tests/ldap_start_tls_basic.phpt
++++ b/ext/ldap/tests/ldap_start_tls_basic.phpt
+@@ -3,6 +3,8 @@ ldap_start_tls() - Basic ldap_start_tls test
+ --CREDITS--
+ Patrick Allaert <patrickallaert@php.net>
+ # Belgian PHP Testfest 2009
++--ENV--
++LDAPNOINIT=1
+ --SKIPIF--
+ <?php require_once __DIR__ .'/skipif.inc'; ?>
+ <?php require_once __DIR__ .'/skipifbindfailure.inc'; ?>
+diff --git a/ext/ldap/tests/ldaps_basic.phpt b/ext/ldap/tests/ldaps_basic.phpt
+index 7a1a1383436..9fa49a6ce79 100644
+--- a/ext/ldap/tests/ldaps_basic.phpt
++++ b/ext/ldap/tests/ldaps_basic.phpt
+@@ -2,8 +2,8 @@
+ ldap_connect() - Basic ldaps test
+ --EXTENSIONS--
+ ldap
+---XFAIL--
+-Passes locally but fails on CI - need investigation (configuration ?)
++--ENV--
++LDAPNOINIT=1
+ --SKIPIF--
+ <?php require_once __DIR__ .'/skipifbindfailure.inc'; ?>
+ --FILE--
+-- 
+2.43.7
+
+From d79c713b18d67495dad3d8199ec093dd93404eac Mon Sep 17 00:00:00 2001
+From: Jakub Zelenka <bukka@php.net>
+Date: Tue, 27 May 2025 19:03:56 +0200
+Subject: [PATCH 3/4] Fix GH-18529: additional inheriting of TLS int options
+
+This is for LDAP_OPT_X_TLS_PROTOCOL_MIN and LDAP_OPT_X_TLS_PROTOCOL_MAX
+
+It also adds a test that uses LDAPCONF with TLS max version lower than
+the minimum TLS server version so it should always fail. However it
+does not fial for the second case without this change which confirms
+that the change works as expected.
+
+Closes GH-18676
+
+(cherry picked from commit eade5c17ead650b0735295214bbec84872465e87)
+---
+ .github/scripts/setup-slapd.sh                |  3 ++
+ ext/ldap/ldap.c                               | 32 ++++++++++++---
+ .../tests/ldap_start_tls_rc_max_version.conf  |  1 +
+ .../tests/ldap_start_tls_rc_max_version.phpt  | 41 +++++++++++++++++++
+ ext/ldap/tests/skipifbindfailure.inc          | 33 +++++++++++++++
+ 5 files changed, 105 insertions(+), 5 deletions(-)
+ create mode 100644 ext/ldap/tests/ldap_start_tls_rc_max_version.conf
+ create mode 100644 ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
+
+diff --git a/.github/scripts/setup-slapd.sh b/.github/scripts/setup-slapd.sh
+index b9cb1a4ff7a..f2eb1269d1f 100755
+--- a/.github/scripts/setup-slapd.sh
++++ b/.github/scripts/setup-slapd.sh
+@@ -72,6 +72,9 @@ olcTLSCertificateKeyFile: /etc/ldap/ssl/server.key
+ add: olcTLSVerifyClient
+ olcTLSVerifyClient: never
+ -
++add: olcTLSProtocolMin
++olcTLSProtocolMin: 3.3
++-
+ add: olcAuthzRegexp
+ olcAuthzRegexp: uid=usera,cn=digest-md5,cn=auth cn=usera,dc=my-domain,dc=com
+ -
+diff --git a/ext/ldap/ldap.c b/ext/ldap/ldap.c
+index 6d576b84bd4..8da103fd632 100644
+--- a/ext/ldap/ldap.c
++++ b/ext/ldap/ldap.c
+@@ -3695,7 +3695,8 @@ PHP_FUNCTION(ldap_rename_ext)
+  */
+ static int _php_ldap_tls_newctx(LDAP *ld)
+ {
+-	int val = 0, i, opts[] = {
++	int val = 0, i;
++	int str_opts[] = {
+ #if (LDAP_API_VERSION > 2000)
+ 		LDAP_OPT_X_TLS_CACERTDIR,
+ 		LDAP_OPT_X_TLS_CACERTFILE,
+@@ -3715,21 +3716,42 @@ static int _php_ldap_tls_newctx(LDAP *ld)
+ #endif
+ 	0};
+ 
+-	for (i=0 ; opts[i] ; i++) {
++	for (i=0 ; str_opts[i] ; i++) {
+ 		char *path = NULL;
+ 
+-		ldap_get_option(ld, opts[i], &path);
++		ldap_get_option(ld, str_opts[i], &path);
+ 		if (path) {			/* already set locally */
+ 			ldap_memfree(path);
+ 		} else {
+-			ldap_get_option(NULL, opts[i], &path);
++			ldap_get_option(NULL, str_opts[i], &path);
+ 			if (path) { 	/* set globally, inherit */
+-				ldap_set_option(ld, opts[i], path);
++				ldap_set_option(ld, str_opts[i], path);
+ 				ldap_memfree(path);
+ 			}
+ 		}
+ 	}
+ 
++#ifdef LDAP_OPT_X_TLS_PROTOCOL_MIN
++	int int_opts[] = {
++		LDAP_OPT_X_TLS_PROTOCOL_MIN,
++#ifdef LDAP_OPT_X_TLS_PROTOCOL_MAX
++		LDAP_OPT_X_TLS_PROTOCOL_MAX,
++#endif
++		0
++	};
++	for (i=0 ; int_opts[i] ; i++) {
++		int value = 0;
++
++		ldap_get_option(ld, int_opts[i], &value);
++		if (value <= 0) { 	/* if value is not set already */
++			ldap_get_option(NULL, int_opts[i], &value);
++			if (value > 0) { 	/* set globally, inherit */
++				ldap_set_option(ld, int_opts[i], &value);
++			}
++		}
++	}
++#endif
++
+ 	return ldap_set_option(ld, LDAP_OPT_X_TLS_NEWCTX, &val);
+ }
+ 
+diff --git a/ext/ldap/tests/ldap_start_tls_rc_max_version.conf b/ext/ldap/tests/ldap_start_tls_rc_max_version.conf
+new file mode 100644
+index 00000000000..0cd03f8b8e1
+--- /dev/null
++++ b/ext/ldap/tests/ldap_start_tls_rc_max_version.conf
+@@ -0,0 +1 @@
++TLS_PROTOCOL_MAX 3.2
+\ No newline at end of file
+diff --git a/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt b/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
+new file mode 100644
+index 00000000000..359785f8b5a
+--- /dev/null
++++ b/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
+@@ -0,0 +1,41 @@
++--TEST--
++ldap_start_tls() - Basic ldap_start_tls test
++--EXTENSIONS--
++ldap
++--ENV--
++LDAPCONF={PWD}/ldap_start_tls_rc_max_version.conf
++--SKIPIF--
++<?php
++$require_vendor = [
++    "name" => "OpenLDAP",
++    "min_version" => 20600,
++];
++require_once __DIR__ .'/skipifbindfailure.inc';
++?>
++--FILE--
++<?php
++require_once "connect.inc";
++
++// CI uses self signed certificate
++
++// No cert option - fails
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++var_dump(@ldap_start_tls($link));
++
++// No cert check - should pass but due to ldaps check, it fails as well
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++ldap_set_option($link, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
++var_dump(@ldap_start_tls($link));
++
++// With cert check - fails
++$link = ldap_connect($uri);
++ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, $protocol_version);
++ldap_set_option($link, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_DEMAND);
++var_dump(@ldap_start_tls($link));
++?>
++--EXPECT--
++bool(false)
++bool(false)
++bool(false)
+diff --git a/ext/ldap/tests/skipifbindfailure.inc b/ext/ldap/tests/skipifbindfailure.inc
+index 8f66c6cb968..ce24cd78f1e 100644
+--- a/ext/ldap/tests/skipifbindfailure.inc
++++ b/ext/ldap/tests/skipifbindfailure.inc
+@@ -10,4 +10,37 @@ if ($skip_on_bind_failure) {
+ 
+     ldap_unbind($link);
+ }
++
++if (isset($require_vendor)) {
++    ob_start();
++    phpinfo(INFO_MODULES);
++    $phpinfo = ob_get_clean();
++
++    // Extract the LDAP section specifically
++    if (preg_match('/^ldap\s*$(.*?)^[a-z_]+\s*$/ims', $phpinfo, $ldap_section_match)) {
++        $ldap_section = $ldap_section_match[1];
++
++        // Extract vendor info from the LDAP section only
++        if (preg_match('/Vendor Name\s*=>\s*(.+)/i', $ldap_section, $name_match) &&
++            preg_match('/Vendor Version\s*=>\s*(\d+)/i', $ldap_section, $version_match)) {
++
++            $vendor_name = trim($name_match[1]);
++            $vendor_version = (int)$version_match[1];
++
++            // Check vendor name if specified
++            if (isset($require_vendor['name']) && $vendor_name !== $require_vendor['name']) {
++                die("skip Requires {$require_vendor['name']} (detected: $vendor_name)");
++            }
++
++            // Check minimum version if specified
++            if (isset($require_vendor['min_version']) && $vendor_version < $require_vendor['min_version']) {
++                die("skip Requires minimum version {$require_vendor['min_version']} (detected: $vendor_version)");
++            }
++        } else {
++            die("skip Cannot determine LDAP vendor information");
++        }
++    } else {
++        die("skip LDAP extension information not found");
++    }
++}
+ ?>
+-- 
+2.43.7
+
+From bb559b2ecaa9359c79e336e6ff20bbe61bec9f6c Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Fri, 3 Oct 2025 08:31:29 +0200
+Subject: [PATCH 4/4] adapt for 8.0
+
+---
+ ext/ldap/ldap.c                                   | 2 --
+ ext/ldap/tests/ldap_start_tls_rc_max_version.phpt | 2 ++
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ext/ldap/ldap.c b/ext/ldap/ldap.c
+index 8da103fd632..9a4589565cb 100644
+--- a/ext/ldap/ldap.c
++++ b/ext/ldap/ldap.c
+@@ -3176,7 +3176,6 @@ PHP_FUNCTION(ldap_set_option)
+ #endif
+ 		/* TLS option change requires resetting TLS context */
+ 		LDAPG(tls_newctx) = true;
+-		ZEND_FALLTHROUGH;
+ 	/* other options with int value */
+ 	case LDAP_OPT_DEREF:
+ 	case LDAP_OPT_SIZELIMIT:
+@@ -3258,7 +3257,6 @@ PHP_FUNCTION(ldap_set_option)
+ #endif
+ 		/* TLS option change requires resetting TLS context */
+ 		LDAPG(tls_newctx) = true;
+-		ZEND_FALLTHROUGH;
+ 	/* other options with string value */
+ 	case LDAP_OPT_ERROR_STRING:
+ #ifdef LDAP_OPT_HOST_NAME
+diff --git a/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt b/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
+index 359785f8b5a..fcdf276af9c 100644
+--- a/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
++++ b/ext/ldap/tests/ldap_start_tls_rc_max_version.phpt
+@@ -16,6 +16,8 @@ require_once __DIR__ .'/skipifbindfailure.inc';
+ <?php
+ require_once "connect.inc";
+ 
++$uri = 'ldap://localhost:389';
++
+ // CI uses self signed certificate
+ 
+ // No cert option - fails
+-- 
+2.43.7
+

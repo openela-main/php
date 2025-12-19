@@ -1,0 +1,98 @@
+From 60e7e11e8b93662b3eb62d0405e3f4a8a4928ef9 Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Thu, 20 Mar 2025 09:26:26 +0100
+Subject: [PATCH] Fix #66049 Typemap can break parsing in parse_packet_soap
+ leading to a segfault
+
+(cherry picked from commit 209f4c296ec6a08c721afdf17d787db4b5fd37d0)
+---
+ ext/soap/php_packet_soap.c        |  3 ++
+ ext/soap/tests/bugs/bug66049.phpt | 48 +++++++++++++++++++++++++++++++
+ 2 files changed, 51 insertions(+)
+ create mode 100644 ext/soap/tests/bugs/bug66049.phpt
+
+diff --git a/ext/soap/php_packet_soap.c b/ext/soap/php_packet_soap.c
+index 0e3a5197373..ab3dbf6b1e4 100644
+--- a/ext/soap/php_packet_soap.c
++++ b/ext/soap/php_packet_soap.c
+@@ -192,6 +192,7 @@ int parse_packet_soap(zval *this_ptr, char *buffer, int buffer_size, sdlFunction
+ 			if (tmp != NULL && tmp->children != NULL) {
+ 				zval zv;
+ 				master_to_zval(&zv, get_conversion(IS_STRING), tmp);
++				convert_to_string(&zv)
+ 				faultstring = Z_STR(zv);
+ 			}
+ 
+@@ -199,6 +200,7 @@ int parse_packet_soap(zval *this_ptr, char *buffer, int buffer_size, sdlFunction
+ 			if (tmp != NULL && tmp->children != NULL) {
+ 				zval zv;
+ 				master_to_zval(&zv, get_conversion(IS_STRING), tmp);
++				convert_to_string(&zv)
+ 				faultactor = Z_STR(zv);
+ 			}
+ 
+@@ -222,6 +224,7 @@ int parse_packet_soap(zval *this_ptr, char *buffer, int buffer_size, sdlFunction
+ 				if (tmp != NULL && tmp->children != NULL) {
+ 					zval zv;
+ 					master_to_zval(&zv, get_conversion(IS_STRING), tmp);
++					convert_to_string(&zv)
+ 					faultstring = Z_STR(zv);
+ 				}
+ 			}
+diff --git a/ext/soap/tests/bugs/bug66049.phpt b/ext/soap/tests/bugs/bug66049.phpt
+new file mode 100644
+index 00000000000..e48845a8a14
+--- /dev/null
++++ b/ext/soap/tests/bugs/bug66049.phpt
+@@ -0,0 +1,48 @@
++--TEST--
++Fix #66049 Typemap can break parsing in parse_packet_soap leading to a segfault
++--EXTENSIONS--
++soap
++--INI--
++soap.wsdl_cache_enabled=0
++--FILE--
++<?php
++function soap_string_from_xml($str)
++    { 
++    echo "soap_string_from_xml\n";
++
++	// Should return an string
++    return 2.3; 
++    }
++
++class TestSoapClient extends SoapClient {
++    function __doRequest($request, $location, $action, $version, $one_way = 0): ?string {
++        $res='<?xml version="1.0" encoding="UTF-8"?>
++            <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
++            <SOAP-ENV:Body>
++            <SOAP-ENV:Fault><faultcode>SOAP-ENV:Server</faultcode><faultstring>not present</faultstring>
++            </SOAP-ENV:Fault></SOAP-ENV:Body></SOAP-ENV:Envelope>';
++        return $res;
++    }
++}
++
++try {
++    $client=new TestSoapClient(null, [
++        'uri' => 'test://',
++        'location' => 'test://',
++        'typemap' => [[
++            "type_ns" => "http://www.w3.org/2001/XMLSchema",
++            "type_name" => "string",
++            "from_xml" => "soap_string_from_xml"
++         ]]]);
++    $client->Mist("");
++} catch (SoapFault $e) {
++    var_dump($e->faultstring);
++    var_dump($e->faultcode);
++}
++?>
++Done
++--EXPECT--
++soap_string_from_xml
++string(3) "2.3"
++string(15) "SOAP-ENV:Server"
++Done
+-- 
+2.43.7
+
