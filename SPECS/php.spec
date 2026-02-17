@@ -62,7 +62,7 @@
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 4%{?dist}
+Release: 5%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -151,6 +151,9 @@ Patch217: php-cve-2025-1219.patch
 Patch218: php-cve-2025-6491.patch
 Patch219: php-cve-2025-1220.patch
 Patch220: php-cve-2025-1735.patch
+Patch221: php-cve-2025-14177.patch
+Patch222: php-cve-2025-14178.patch
+Patch223: php-ghsa-www2-q4fc-65wf.patch
 
 # Fixes for tests (300+)
 # Factory is droped from system tzdata
@@ -776,6 +779,9 @@ rm ext/openssl/tests/p12_with_extra_certs.p12
 %patch -P218 -p1 -b .cve6491
 %patch -P219 -p1 -b .cve1220
 %patch -P220 -p1 -b .cve1735
+%patch -P221 -p1 -b .cve14177
+%patch -P222 -p1 -b .cve14178
+%patch -P223 -p1 -b .ghsawwww2
 
 # Fixes for tests
 %patch -P300 -p1 -b .datetests
@@ -1584,6 +1590,14 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Fri Jan 16 2026 Remi Collet <rcollet@redhat.com> - 8.0.30-5
+- Fix Null byte termination in dns_get_record()
+  GHSA-www2-q4fc-65wf
+- Fix Heap buffer overflow in array_merge()
+  CVE-2025-14178
+- Fix Information Leak of Memory in getimagesize
+  CVE-2025-14177
+
 * Fri Oct  3 2025 Remi Collet <rcollet@redhat.com> - 8.0.30-4
 - Fix pgsql extension does not check for errors during escaping
   CVE-2025-1735
