@@ -63,12 +63,12 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.29
+%global upver        8.3.31
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 1%{?dist}
+Release: 2%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -336,7 +336,9 @@ need to install this package.
 %package opcache
 Summary:   The Zend OPcache
 License:   PHP-3.01
+%ifnarch %{ix86}
 BuildRequires: pkgconfig(capstone) >= 3.0
+%endif
 Requires:  php-common%{?_isa} = %{version}-%{release}
 Provides:  php-pecl-zendopcache = %{version}
 Provides:  php-pecl-zendopcache%{?_isa} = %{version}
@@ -917,7 +919,9 @@ pushd build-cgi
 build --libdir=%{_libdir}/php \
       --enable-pcntl \
       --enable-opcache \
+%ifnarch %{ix86}
       --with-capstone \
+%endif
       --enable-phpdbg --enable-phpdbg-readline \
 %if %{with imap}
       --with-imap=shared --with-imap-ssl \
@@ -1553,6 +1557,12 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Thu May 21 2026 Remi Collet <rcollet@redhat.com> - 8.3.31-2
+- drop capstone dependency on i686
+
+* Thu May 21 2026 Remi Collet <rcollet@redhat.com> - 8.3.31-1
+- rebase to 8.3.31
+
 * Thu Jan  8 2026 Remi Collet <rcollet@redhat.com> - 8.3.29-1
 - rebase to 8.3.29
 
