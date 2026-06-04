@@ -63,7 +63,7 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.29
+%global upver        8.3.31
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
@@ -91,6 +91,7 @@ Source9: php.modconf
 Source12: php-fpm.wants
 Source13: nginx-fpm.conf
 Source14: nginx-php.conf
+Source15: php.tmpfiles
 # See https://secure.php.net/gpg-keys.php
 Source20: https://www.php.net/distributions/php-keyring.gpg
 Source21: https://www.php.net/distributions/php-%{upver}%{?rcver}.tar.xz.asc
@@ -1200,6 +1201,9 @@ install -m 644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/php.ini
 # For third-party packaging:
 install -m 755 -d $RPM_BUILD_ROOT%{_datadir}/php/preload
 
+# Install tmpfiles.d file
+install -p -D -m 0644 %{SOURCE15} %{buildroot}%{_tmpfilesdir}/php.conf
+
 %if %{with modphp}
 # install the DSO
 install -m 755 -d $RPM_BUILD_ROOT%{_httpd_moddir}
@@ -1414,6 +1418,7 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 %attr(0770,root,apache) %dir %{_sharedstatedir}/php/wsdlcache
 %attr(0770,root,apache) %dir %{_sharedstatedir}/php/opcache
 %config(noreplace) %{_httpd_confdir}/php.conf
+%{_tmpfilesdir}/php.conf
 %endif
 
 %files common -f files.common
@@ -1488,6 +1493,7 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 %{_mandir}/man8/php-fpm.8*
 %dir %{_datadir}/fpm
 %{_datadir}/fpm/status.html
+%{_tmpfilesdir}/php.conf
 
 %files devel
 %{_bindir}/php-config
@@ -1554,6 +1560,10 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Tue May 26 2026 Remi Collet <rcollet@redhat.com> - 8.3.31-1
+- rebase to 8.3.31
+- add tmpfiles.d configuration file for ImageMode
+
 * Thu Jan  8 2026 Remi Collet <rcollet@redhat.com> - 8.3.29-1
 - rebase to 8.3.29
 
