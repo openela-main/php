@@ -60,7 +60,7 @@
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 3%{?dist}
+Release: 4%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -108,6 +108,7 @@ Patch47: php-5.6.3-phpinfo.patch
 # Upstream fixes (100+)
 
 # Security fixes (200+)
+# From https://github.com/remicollet/php-src-security/tree/PHP-7.4-security-backports
 Patch200: php-cve-2022-31631.patch
 Patch201: php-cve-2023-0567.patch
 Patch202: php-cve-2023-0568.patch
@@ -139,6 +140,12 @@ Patch227: php-cve-2025-1735.patch
 Patch228: php-cve-2025-14177.patch
 Patch229: php-cve-2025-14178.patch
 Patch230: php-ghsa-www2-q4fc-65wf.patch
+Patch231: php-cve-2026-6722.patch
+Patch232: php-cve-2026-7261.patch
+Patch233: php-cve-2026-7262.patch
+Patch234: php-cve-2026-6735.patch
+Patch235: php-cve-2026-7568.patch
+Patch236: php-cve-2026-7258.patch
 
 # Fixes for tests (300+)
 # Factory is droped from system tzdata
@@ -779,6 +786,12 @@ in pure PHP.
 %patch -P228 -p1 -b .cve14177
 %patch -P229 -p1 -b .cve14178
 %patch -P230 -p1 -b .ghsawwww2
+%patch -P231 -p1 -b .cve6722
+%patch -P232 -p1 -b .cve7261
+%patch -P233 -p1 -b .cve7262
+%patch -P234 -p1 -b .cve6735
+%patch -P235 -p1 -b .cve7268
+%patch -P236 -p1 -b .cve7258
 
 # Fixes for tests
 %patch -P300 -p1 -b .datetests
@@ -1568,6 +1581,20 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Thu Jun  4 2026 Remi Collet <rcollet@redhat.com> - 7.4.33-4
+- Fix XSS within status endpoint
+  CVE-2026-6735
+- Fix Stale SOAP_GLOBAL(ref_map) pointer with Apache Map
+  CVE-2026-6722
+- Fix Use-after-free after header parsing failure with SOAP_PERSISTENCE_SESSION
+  CVE-2026-7261
+- Fix Broken Apache map value NULL check
+  CVE-2026-7262
+- Fix Signed integer overflow of char array offset
+  CVE-2026-7568
+- Fix Consistently pass unsigned char to ctype.h functions
+  CVE-2026-7258
+
 * Mon Jan 19 2026 Remi Collet <rcollet@redhat.com> - 7.4.33-3
 - Fix Heap-Use-After-Free in sapi_read_post_data Processing in CLI SAPI Interface
   GHSA-4w77-75f9-2c8w
