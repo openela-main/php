@@ -63,12 +63,12 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.31
+%global upver        8.3.32
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 2%{?dist}
+Release: 1%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -1557,6 +1557,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Thu Jul  9 2026 Remi Collet <rcollet@redhat.com> - 8.3.32-1
+- rebase to 8.3.32
+
 * Thu May 21 2026 Remi Collet <rcollet@redhat.com> - 8.3.31-2
 - drop capstone dependency on i686
 
