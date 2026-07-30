@@ -60,7 +60,7 @@
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 4%{?dist}
+Release: 5%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -146,6 +146,8 @@ Patch233: php-cve-2026-7262.patch
 Patch234: php-cve-2026-6735.patch
 Patch235: php-cve-2026-7568.patch
 Patch236: php-cve-2026-7258.patch
+# from 8.2.32
+Patch237: php-cve-2026-14355.patch
 
 # Fixes for tests (300+)
 # Factory is droped from system tzdata
@@ -792,6 +794,7 @@ in pure PHP.
 %patch -P234 -p1 -b .cve6735
 %patch -P235 -p1 -b .cve7268
 %patch -P236 -p1 -b .cve7258
+%patch -P237 -p1 -b .cve14355
 
 # Fixes for tests
 %patch -P300 -p1 -b .datetests
@@ -1581,6 +1584,10 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Fri Jul 10 2026 Remi Collet <rcollet@redhat.com> - 7.4.33-5
+- Fix Memory corruption (zend_mm_heap corrupted) in openssl_encrypt with AES-WRAP-PAD
+  CVE-2026-14355
+
 * Thu Jun  4 2026 Remi Collet <rcollet@redhat.com> - 7.4.33-4
 - Fix XSS within status endpoint
   CVE-2026-6735
