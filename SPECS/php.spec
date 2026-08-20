@@ -63,7 +63,7 @@
 %bcond_with      imap
 %bcond_without   lmdb
 
-%global upver        8.3.32
+%global upver        8.3.33
 
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
@@ -1557,6 +1557,9 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Thu Aug  6 2026 Remi Collet <rcollet@redhat.com> - 8.3.33-1
+- rebase to 8.3.33
+
 * Thu Jul  9 2026 Remi Collet <rcollet@redhat.com> - 8.3.32-1
 - rebase to 8.3.32
 
