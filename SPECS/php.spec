@@ -62,7 +62,7 @@
 Summary: PHP scripting language for creating dynamic web sites
 Name: php
 Version: %{upver}%{?rcver:~%{rcver}}
-Release: 6%{?dist}
+Release: 8%{?dist}
 # All files licensed under PHP version 3.01, except
 # Zend is licensed under Zend
 # TSRM is licensed under BSD
@@ -162,6 +162,13 @@ Patch228: php-cve-2026-6735.patch
 Patch229: php-cve-2026-7259.patch
 Patch230: php-cve-2026-7568.patch
 Patch231: php-cve-2026-7258.patch
+# From 8.2.32
+Patch232: php-cve-2026-14355.patch
+# From 8.2.33
+Patch233: php-cve2026-9672.patch
+Patch234: php-cve2026-17543.patch
+Patch235: php-cve2026-7260.patch
+Patch236: php-gh22643.patch
 
 # Fixes for tests (300+)
 # Factory is droped from system tzdata
@@ -798,6 +805,11 @@ rm ext/openssl/tests/p12_with_extra_certs.p12
 %patch -P229 -p1 -b .cve7259
 %patch -P230 -p1 -b .cve7268
 %patch -P231 -p1 -b .cve7258
+%patch -P232 -p1 -b .cve14355
+%patch -P233 -p1 -b .cve9672
+%patch -P234 -p1 -b .cve17543
+%patch -P235 -p1 -b .cve7260
+%patch -P236 -p1 -b .gh22643
 
 # Fixes for tests
 %patch -P300 -p1 -b .datetests
@@ -1606,6 +1618,17 @@ systemctl try-restart php-fpm.service >/dev/null 2>&1 || :
 
 
 %changelog
+* Tue Aug  4 2026 Remi Collet <rcollet@redhat.com> - 8.0.30-8
+- Fix leak on double DatePeriod::__construct() call
+- Fixed SQL injection via E'...' backslash breakout
+  CVE-2026-17543
+- Fixed GHSA-vc5h-9ppw-p5f3 Crash via recursive symlinks
+  CVE-2026-7260
+
+* Thu Jul  9 2026 Remi Collet <rcollet@redhat.com> - 8.0.30-7
+- Fix Memory corruption (zend_mm_heap corrupted) in openssl_encrypt with AES-WRAP-PAD
+  CVE-2026-14355
+
 * Fri Jun  5 2026 Remi Collet <rcollet@redhat.com> - 8.0.30-6
 - Fix XSS within status endpoint
   CVE-2026-6735
